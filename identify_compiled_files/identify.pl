@@ -10,6 +10,8 @@ my $FILE_TYPES 	= 'chsS';
 my $PACKAGE_PATH= '/home/syrajendra/Rajendra/projects/personal/package';
 my $MAKE_CMD	= 'export LIBRARY_PATH=/usr/lib/x86_64-linux-gnu && make clean && make';
 my $mount_done  = 0;
+my $home = '';
+my $COMPILED_FILES = 'compiled.files';
 
 sub run_command
 {
@@ -21,7 +23,8 @@ sub run_command
 	if ($ret_code & 127 || ($ret_code >> 8)) {
 		print "Error: Failed to run cmd : $cmd\n";
 		print "Output: @output";
-		exit $ret_code;
+		#exit $ret_code;
+		return ($ret_code, @output);
 	}
 	return (0, @output);
 }
@@ -80,25 +83,33 @@ sub superuser_action
 		my @output 	= run_command($cmd);
 		if ($output[0] != 0) {
 			print("Error: Failed to mount\n@output\n");
-			exit 1;
+			return 1;
 		}
 	}
 	#print("Drop sudo privileages\n");
 	drop_sudo();
 	#print("Real: $< Effective $>\n");
+	return 0;
 }
 
 sub init
 {
-	my $home 	= shift;
 	my $cmd 	= qq(mount -o remount,strictatime $home);
-	superuser_action($cmd);
+	my $ret 	= superuser_action($cmd);
+	if ($ret) {
+		$home = '/';
+		$cmd 	= qq(mount -o remount,strictatime $home);
+		my $ret 	= superuser_action($cmd);
+		if($ret) {
+			exit(1);
+		}
+	}
 	$mount_done = 1;
+	return $home;
 }
 
 sub cleanup
 {
-	my $home 	= shift;
 	if ($mount_done) {
 		my $cmd 	= qq(mount -o remount,relatime $home);
 		superuser_action($cmd);
@@ -108,7 +119,6 @@ sub cleanup
 }
 
 END {
-	my $home 	= '/' . (split('/', $PACKAGE_PATH))[1];
 	cleanup($home)
 }
 
@@ -131,8 +141,8 @@ sub process
 		print("Error: Wrong package path : $ppath\n");
 		exit 0;
 	}
-	my $home 	= '/' . (split('/', $ppath))[1];
-	init($home);
+	$home 		= '/' . (split('/', $ppath))[1];
+	$home 		= init($home);
 	my @output 	= run_command(qq(find $ppath -name "*.[$filetypes]"));
 	my $status 	= shift @output;
 	my @f_list	= @output;
@@ -145,13 +155,13 @@ sub process
 			my $status = shift @output;
 			if ($status != 0) {
 				print("Error: Failed to compile code. Exiting...\n");
-				exit $output[0];
+				exit 1;
 			}
 			log_data('compiled.log', @output);
 			my %after_hash 	= get_source_access_time(@f_list);
 			my @cf_list = get_compiled_filelist(\%before_hash, \%after_hash);
 			print("compiled files: $#cf_list\n");
-			log_data('compiled.files', @cf_list);
+			log_data($COMPILED_FILES, @cf_list);
 		} else {
 			printf("Error: Failed to find files of filetype $FILE_TYPES\n");
 			exit 1;
@@ -175,6 +185,8 @@ sub main
 	}
 	my $etime = time();
 	my $ttime = $etime - $stime;
+	run_command('ctags -L ' . $COMPILED_FILES . ' -f .tags');
+	run_command('cscope -b -q -k -i ' . $COMPILED_FILES);
 	print("Total time taken: $ttime secs\n");
 	exit 0;
 }
