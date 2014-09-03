@@ -55,10 +55,14 @@ sub get_compiled_filelist
 	my %bhash 	= %{$bh};
 	my %ahash 	= %{$ah};
 	my @clist   = ();
-	for my $fp (sort keys %bhash) {
+	for my $fp (sort keys %ahash) {
 		#print("$ahash{$fp} == $bhash{$fp}\n");
-		if ($ahash{$fp} > $bhash{$fp}) {
-			push(@clist, $fp);
+		 if(exists($bhash{$fp})) {
+			if ($ahash{$fp} > $bhash{$fp}) {
+				push(@clist, $fp);
+			}
+		} else {
+			push(@clist, $fp); # generated file
 		}
 	}
 	return @clist;
