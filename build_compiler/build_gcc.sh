@@ -1,5 +1,5 @@
 #!/bin/bash
-Version=4.0
+Version=5.0
 
 # Tested on Ubuntu 12.04 & 14.04
 sudo apt-get install flex bison libgmp3-dev libmpfr-dev libncurses5-dev libmpc-dev autoconf texinfo build-essential libftdi-dev libexpat1 libexpat1-dev zlib1g-dev automake libtool patch curl cvs subversion gawk python-dev gperf
@@ -24,7 +24,7 @@ GDB_VERSION=7.7.1
 
 FTP_BINUTILS="ftp://ftp.gnu.org/gnu/binutils"
 FTP_NEWLIB="ftp://sourceware.org/pub/newlib"
-FTP_GCC="ftp://mirrors.kernel.org/gnu/gcc"
+FTP_GCC="ftp://ftp.gnu.org/gnu/gcc"
 FTP_GDB="ftp://ftp.gnu.org/gnu/gdb"
 
 ################################ DO NOT EDIT BELOW CODE ########################
@@ -132,7 +132,7 @@ run_cmd "cd ${TAR_DIR}"
 download_file "${FTP_BINUTILS}/" "binutils-${BINUTILS_VERSION}.tar.bz2"
 download_file "${FTP_NEWLIB}/" "newlib-${NEWLIB_VERSION}.tar.gz"
 download_file "${FTP_GCC}/gcc-${GCC_VERSION}/" "gcc-${GCC_VERSION}.tar.bz2"
-download_file "${FTP_GDB}/" "gdb-${GDB_VERSION}.tar.bz2"
+download_file "${FTP_GDB}/" "gdb-${GDB_VERSION}.tar.gz"
 
 run_cmd "cd ${SOURCE_DIR}"
 my_echo "Building and installing binutils..."
