@@ -105,6 +105,7 @@ sub get_mount_cmd
 	} else {
 		$cmd 	= qq(mount -o remount,strictatime $MOUNT_POINT);
 	}
+	return $cmd;
 }
 
 sub init
@@ -163,8 +164,8 @@ sub process
 	}
 	if ($MOUNT_POINT eq '') {
 		$MOUNT_POINT= '/' . (split('/', $ppath))[1];
-		$MOUNT_POINT= init();
 	}
+	$MOUNT_POINT= init();
 	my @output 	= run_command(qq(find $ppath $FILE_TYPES));
 	my $status 	= shift @output;
 	my @f_list	= @output;
@@ -226,3 +227,4 @@ sub main
 }
 
 main();
+# sudo ./identify.pl $PWD ./build-rpi.sh /dev/da0p2 compiled.files
