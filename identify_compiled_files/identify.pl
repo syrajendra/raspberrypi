@@ -6,12 +6,13 @@ use Data::Dumper;
 use File::Basename;
 use Cwd qw(abs_path);
 
-my $FILE_TYPES 	= 'chsS';
-my $PACKAGE_PATH= '/home/syrajendra/Rajendra/projects/personal/package';
-my $MAKE_CMD	= 'export LIBRARY_PATH=/usr/lib/x86_64-linux-gnu && make clean && make';
+my $FILE_TYPES 	= '\( -iname ldscript.\* -o -iname \*.c -o -iname \*.h -o -iname \*.s -o -iname \*.S -o -iname \*.cpp -o -iname \*.hpp -o -iname \*.cxx \)';
+my $PACKAGE_PATH= '';
+my $MAKE_CMD	= '';
+my $MOUNT_POINT = '';
 my $mount_done  = 0;
-my $home = '';
 my $COMPILED_FILES = 'compiled.files';
+my $platform=`uname`;
 
 sub run_command
 {
@@ -78,12 +79,12 @@ sub superuser_action
 	my $cmd 	= shift;
 	#print("Real: $< Effective $>\n");
 	{ # root
-		local $> = 0;
+		local $> = 0; # switch as root
 		if ($> != 0) {
 			print("Error: Run this script with sudo. It does a remount with strictatime/relatime option\n");
 			exit 1;
 		}
-		#print("Root: mount filesystem\n");
+		#print("Root: mounting filesystem\n");
 		my @output 	= run_command($cmd);
 		if ($output[0] != 0) {
 			print("Error: Failed to mount\n@output\n");
@@ -96,26 +97,41 @@ sub superuser_action
 	return 0;
 }
 
+sub get_mount_cmd
+{
+	my $cmd;
+	if ($platform eq "FreeBSD") {
+		$cmd 	= qq(mount -o atime $MOUNT_POINT);
+	} else {
+		$cmd 	= qq(mount -o remount,strictatime $MOUNT_POINT);
+	}
+}
+
 sub init
 {
-	my $cmd 	= qq(mount -o remount,strictatime $home);
+	my $cmd = get_mount_cmd();
 	my $ret 	= superuser_action($cmd);
 	if ($ret) {
-		$home = '/';
-		$cmd 	= qq(mount -o remount,strictatime $home);
+		$MOUNT_POINT = '/';
+		$cmd 	= get_mount_cmd();
 		my $ret 	= superuser_action($cmd);
 		if($ret) {
 			exit(1);
 		}
 	}
 	$mount_done = 1;
-	return $home;
+	return $MOUNT_POINT;
 }
 
 sub cleanup
 {
 	if ($mount_done) {
-		my $cmd 	= qq(mount -o remount,relatime $home);
+		my $cmd = '';
+		if ($platform eq "FreeBSD") {
+			$cmd = qq(mount -o noatime $MOUNT_POINT);
+		} else {
+			$cmd 	= qq(mount -o remount,relatime $MOUNT_POINT);
+		}
 		superuser_action($cmd);
 		$mount_done 	= 0;
 		print("Done cleaning up\n");
@@ -123,7 +139,7 @@ sub cleanup
 }
 
 END {
-	cleanup($home)
+	cleanup();
 }
 
 sub log_data
@@ -140,14 +156,16 @@ sub log_data
 
 sub process
 {
-	my ($ppath, $filetypes, $make) = @_;
+	my ($ppath, $make) = @_;
 	if (! -d $ppath) {
 		print("Error: Wrong package path : $ppath\n");
 		exit 0;
 	}
-	$home 		= '/' . (split('/', $ppath))[1];
-	$home 		= init($home);
-	my @output 	= run_command(qq(find $ppath -name "*.[$filetypes]"));
+	if ($MOUNT_POINT eq '') {
+		$MOUNT_POINT= '/' . (split('/', $ppath))[1];
+		$MOUNT_POINT= init();
+	}
+	my @output 	= run_command(qq(find $ppath $FILE_TYPES));
 	my $status 	= shift @output;
 	my @f_list	= @output;
 	if ($status == 0) {
@@ -176,21 +194,33 @@ sub process
 sub main
 {
 	my $stime  	= time();
+	chomp($platform);
 	drop_sudo();
 	my $num_args = $#ARGV + 1;
-	if ($num_args == 2) {
+	if ($num_args >= 2) {
 		$PACKAGE_PATH = shift @ARGV;
 		$MAKE_CMD	  = shift @ARGV;
+		if ($num_args > 2) {
+			$MOUNT_POINT = shift @ARGV;
+		}
+		if ($num_args > 3) {
+			$COMPILED_FILES= shift @ARGV
+		}
 		$PACKAGE_PATH = abs_path($PACKAGE_PATH);
-		process($PACKAGE_PATH, $FILE_TYPES, $MAKE_CMD)
+		process($PACKAGE_PATH, $MAKE_CMD)
 	} else {
-		printf ("Uasge: " . __FILE__  . " <package_path> <make command>\n");
+		printf ("Uasge: " . __FILE__  . " <src path> <make command> <mount point> <logfilename>\n");
 		exit 0;
 	}
 	my $etime = time();
 	my $ttime = $etime - $stime;
-	run_command('ctags -L ' . $COMPILED_FILES . ' -f .tags');
-	run_command('cscope -b -q -k -i ' . $COMPILED_FILES);
+	if ($platform eq "FreeBSD") {
+		run_command('cat ' . $COMPILED_FILES . ' | xargs ctags');
+		run_command('cscope -b -q -k -i ' . $COMPILED_FILES);
+	} else {
+		run_command('ctags -L ' . $COMPILED_FILES . ' -f .tags');
+		run_command('cscope -b -q -k -i ' . $COMPILED_FILES);
+	}
 	print("Total time taken: $ttime secs\n");
 	exit 0;
 }
